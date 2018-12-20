@@ -1,0 +1,770 @@
+
+
+\documentclass[conference]{IEEEtran}
+
+
+\hyphenation{op-tical net-works semi-conduc-tor}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{framed}
+\usepackage{graphicx}
+\lstset{
+basicstyle=\small\ttfamily,
+columns=flexible,
+breaklines=true
+}
+
+\begin{document}
+
+\title{Use of Cadence RC and SoC Encounter to Implement a Configurable-Width SIMD FPU}
+
+
+
+\author{\IEEEauthorblockN{Adam Rushby}
+\IEEEauthorblockA{Wolfson School of Mechanical,\\Electrical and Manufacturing Engineering\\
+Loughborough University\\
+Loughbrough, Leicstershire, UK\\
+Email: a.rushby-14@student.lboro.ac.uk}
+}
+
+\maketitle
+
+\begin{abstract}
+	
+This paper presents a method of automation for the design synthesis and implementation process of an IEEE 754-compliant, single instruction, multiple data floating point unit. The synthesis process is carried out using Cadence RC, and the implementation process is carried out using Cadence's SoC Encounter. The  design files of the SIMD FPU are modified to introduce an increasing number of FPU lanes that the design is mapped against. The RC script used to execute Cadence RC is then modified to adjust the timing constraints on the design and the level of effort for design optimisation. The SIMD FPU design is compiled and synthesised of using the RC script and then implemented using an Encounter script. Automation  is carried out by a BASH script which executes multiple iterations of the process while changing design parameters periodically.  
+\end{abstract}
+
+\IEEEpeerreviewmaketitle
+
+\section{Introduction}
+
+The objective of this paper is to explain and detail the creation of an automation script used to automate both front-end synthesis, and back-end implementation Place \& Route processes for a given set of Very High Speed Integrated Circuit (VHSIC), Hardware Description Language(VHDL) .vhd design files. The front-end process makes use of the Cadence Register Transfer Level (RTL) Compiler (RC) and the back-end process makes use of Cadence's System on Chip (SoC) Encounter. The .vhd files contain the design for a Single Instruction, Multiple Data (SIMD) Floating point Unit (FPU). 
+\newline
+
+The first step in the work flow is to compile the SIMD FPU design files using Cadence RC. This is achieved using an .rc script. This tool creates an .rc.sdf file required for the place and route step. Once the compiler is finished, the next step is to implement the design using SoC Encounter. This is done using an .enc script. The .enc scipt import the FPU design using the .rc.sdf file and maps the design to a grid. Both steps create log files which contain the timing results and the design area. This data is collected and stored to a .csv file along with the corresponding number of lanes, clock timings and the compiler effort for the design.
+
+\section{SIMD processing}
+
+The Configurable nature of the SIMD FPU design exploits data-level parallelism through the use of parallel SIMD lanes \cite{SIMD}. Each SIMD lane is a clone of the of FPU design. Each FPU within the compiled design, executes the same instruction, for its given inputs, as every other lane. This design architecture is important for applications where large amounts of data need to be operated on using the same data operation. Instead of having one lane handle each and every operation, the data is shared amongst multiple lanes and each operation is applied to the data in parallel. Because each lanes execute the same operation, only one instruction call is required to saturate the lanes with data, and only one instruction is need to operate on the data stored in the lanes. This effectively saves processing time where originally multiple copies of the same set of instructions would called for one lane to operate on the data. 
+\newline
+\section{Design Environment}
+
+The design environment used is a remote Linux server running the Bourne Again Shell (BASH). The server is accessed using the Xming X Window System Server \cite{xming} and the PuTTY Secure Socket Shell (SHH) client \cite{putty}. Once connected to the server, a GNOME terminal is opened using the \texttt{gnome-terminal} command, allowing access to a Graphical User Interface. The \texttt{cd} command is used to access the simd\_fpu project directory containing the necessary design files and scripts needed to execute the front-end and back-end processes manually
+\newline
+
+Automation within the BASH environment is done using a BASH shell script stored within the scripts folder of the simd\_fpu project directory.  
+\section{Synthesis Environment}
+The Cadence RC tool is used to compile and synthesise RTL design files. This compilation process is executed using an .rc script.  This .rc script contains fourteen steps that the compiler goes through to produce the files required for the place and route process. Those fourteen steps are:
+\begin{itemize}
+	\item Specify Search Paths
+	\item Specify Synthesis Library Estimator Mode 
+	\item Specify Physical Layout
+	\item Specify LEF Files
+	\item Specify .cap File
+	\item Import RTL
+	\item Clock Gating Phase 1
+	\item Elaborate Top Level
+	\item Clock Gating Phase 2
+	\item Retiming
+	\item Constraints
+	\item Verify Constraints
+	\item Synthesis Proper
+	\item Generating Reports
+	\item Export Output to Downstream Flows
+\end{itemize} 
+The Specify search paths step sets the directories for the library, script and RTL files.
+\begin{framed}
+\begin{lstlisting}
+set_attribute lib_search_path {. libs/ lef/ ram/}
+set_attribute script_search { scripts/}
+set_attribute hdl_search_path {rtl/}
+\end{lstlisting}
+\end{framed}
+
+The Specify synthesis library step sets the desired library that the compiler will use. For the SIMD FPU design, slow.lib is called which targets the worst case library. 
+\begin{framed}
+\begin{lstlisting}
+set_attribute library {slow.lib ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN _slow_syn.lib}
+\end{lstlisting}
+\end{framed}
+The Specify Physical Layout Estimator (PLE) Mode step enables the physical optimisation mode for the design target. This is used as it is the best mode for communicating between Library Exchange Format (.lef) files and the synthesis tools. 
+\begin{framed}
+\begin{verbatim}
+set_attribute interconnect_mode ple
+\end{verbatim}
+\end{framed}
+The Specify LEF Files step sets the file location for any necessary .lef files required for design synthesis.
+\begin{framed}
+\begin{lstlisting}
+set_attribute lef library {tsmc13_hs_8lm.lef tsmc13_hs_8lm_antenna.lef ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN.vclef ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN.ant.lef}
+\end{lstlisting}
+\end{framed}
+The Specify .cap Files step is used to set a capacitance file for design synthesis. For the SIMD FPU design the is no .cap file. The Import RTL step reads the RTL of the design using the vhdl parameter.
+\begin{framed}
+\begin{lstlisting}
+read_hdl -vhdl {simd_fpu_pkg.vhd dbgif.vhd lane.vhd simd_fpu.vhd}
+read_hdl -vhdl datapath.vhd
+\end{lstlisting}
+\end{framed}
+Phase 1 of the Clock Gating step sets the clock-gating and operand isolation attributes as true which will replace the muxe's in the 'enable' flops with clock-gating cells and prevents data paths from being driven when inactive. 
+\begin{framed}
+\begin{lstlisting}
+set_attribute lp_insert_clock_gating true
+set_attribute lp_insert_operand_isolation true
+\end{lstlisting}
+\end{framed}
+This reduction in toggling helps to reduce the dynamic power of the design. The Elaborate Top Level step builds a internal representation of the design's structure used for mapping generic and technology gates.
+\begin{framed}
+\begin{lstlisting}
+elaborate simd_fpu
+\end{lstlisting}
+\end{framed}
+Phase 2 of the Clock Gating step specifies the minimum and maximum number of flops used for inserting clock-gating cells.
+\begin{framed}
+\begin{lstlisting}
+set_attribute lp_clock_gating_max_flops 16 simd_fpu
+set_attribute lp_clock_gating_min_flops 8 simd_fpu
+\end{lstlisting}
+\end{framed}
+The Retiming step allows the tool to rearrange the placement of registers to achieve the targeted cycle time for a minimal area.
+\begin{framed}
+\begin{lstlisting}
+set_attribute retime true simd_fpu
+\end{lstlisting}
+\end{framed}
+The constraints step defines the timings for the clock and the input/output delays. 
+\begin{framed}
+\begin{lstlisting}
+define_clock -name clk -p 10000 clk
+external_delay -input 5000.0 -clock clk addr[*]
+external_delay -input 5000.0 -clock clk wrdata[*]
+external_delay -input 5000.0 -clock clk rd
+external_delay -input 5000.0 -clock clk wr
+external_delay -output 500.0 -clock clk rddata[*]
+set_attribute max_fanout 10 simd_fpu
+\end{lstlisting}
+\end{framed}
+The verify Constraints step generates reports for the timing constraints applied in the previous step. 
+\begin{framed}
+\begin{lstlisting}
+report timing -endpoint 
+report timing -lint
+report clocks
+report ple
+\end{lstlisting}
+\end{framed}
+The Synthesis Proper step sets the effort level for the synthesis tool to one of three options: low, medium and high. The default option is medium effort. 
+\begin{framed}
+\begin{lstlisting}
+synthesize -to_mapped -effort low
+\end{lstlisting}
+\end{framed}
+The Generating Report step sets the type of information reports to be generated by the tool. 
+\begin{framed}
+\begin{lstlisting}
+report timing
+report design_rules
+report gates
+report nets
+report nets
+report summary
+report power
+\end{lstlisting}
+\end{framed}
+Lastly the Export Output to Downstream Flows step write the design and constraints to files that are needed for the place and route process. 
+\begin{framed}
+\begin{lstlisting}
+write_design -encounter
+write_hdl -mapped > simd_fpu.rc.v
+write_sdc > simd_fpu.rc.sdc
+write_sdf -timescale ps -design simd_fpu > simd_fpu.rc.sdf
+\end{lstlisting}
+\end{framed}
+
+\section{Place \& Route}
+
+The Cadence SoC Encounter place \& route tool is used to implement the design. The place \& route process is executed using an .enc script. This script contains sixteen steps that the tool goes through to produce the final design file. These steps are:
+\begin{itemize}
+	\item Design Import
+	\item Initialize Floor Plan
+	\item Power Planning
+	\item Complete Power Planning with Placed Cells
+	\item Standard Cell Placement
+	\item Clock Tree Synthesis
+	\item Route Design
+	\item Timing Analysis
+	\item Area Report
+	\item Add Filler Cells 
+	\item Add Metal Fill and Connect to VDD
+	\item verification: Metal Density
+	\item verification: Geometry
+	\item verification: DRC
+	\item Verification: Connectivity
+	\item Verification: Antenna Effects
+\end{itemize}
+
+The first step is to import the design, tech, library, LEF and constraint files into the tool \cite{encounter}.
+The Initialize Floor plan step sets the size of the floor plan and utilisation of the floor.
+The Power Planning step creates a power ring followed by power stripes to create a power distribution network for the cells in the design. The complete power planning and standard cell placement steps place the design cells onto the floor and connect them to the power stripes. The clock tree synthesis step specifies a file containing the clock specifications needed to specify  clock signal names, maximum required delay, minimum required delay, maximum clock skew etc.
+\newline
+
+The route design step performs the nanorouting task which executes several iterations of routing with fast RTLC extraction and timing analysis to improve the timing slack. The Area report step generates a summary report file containing the area used by individual cells, IO information, floorplan/placement information, wire length distribution, and area of power net distribution.
+
+\section{Campaign Automation}
+
+Process automation is handled using a BASH shell script stored in the scripts directory named auto.sh. The work flow used for the automation script is shown in Fig.1. The script contains commands to edit the simd\_fpu\_pkg.vhd RTL design file and also edit the simd\_fpu.rc script used to execute the Cadence RC process. the .rc and .enc scripts used for the synthesis and implementation tools, read data from reports generated by the tools, store the data into the res.csv file.  The files used to gather the results are deleted to allow for new reports to be generated under the exact same file name and extension.
+\newline
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=3.5in]{workflow}
+\caption{Overview of Automation Script Workflow.}
+\label{fig_sim}
+\end{figure}
+
+The command to execute the auto.sh script requires an input variable which defines the number of loop iterations that the script will execute. Each iteration covers the 10ns,  5ns, 2.5ns timing requirements, and low and high effort levels for each set of lane values. The script starts at 2 lanes and doubles with each iteration passed. For the input:
+
+\begin{framed}
+\begin{verbatim}
+sh -f auto.sh 4
+\end{verbatim}
+\end{framed}
+
+The script will run for 4 loop iterations, covering lane values of 2, 4, 8, and 16. 
+\newline
+
+The script firstly initialises any variables needed for the automation process and creates a res.csv file with the necessary headings at the top of the file. If the .csv file already exists then the file is overwritten. A while loop is entered containing the main body of the script. the total number of loops is controlled by an incrementing counter, which exists when the value is equal to the input variable.
+\newline
+
+The design and script files are edited using the \texttt{sed} command which searches for a term within the file and replaces it with a new term \cite{sed}. The number of lanes is defined by editing the \texttt{simd\_fpu\_package.vhd} package file. the \texttt{sed} command searches for the line containing the definition for the number of lanes and edits only the text following after, as shown below.
+
+\begin{framed}
+\begin{lstlisting}
+sed -i -e "s/\(LANES : integer := \).*/\1$init_lanes;/" rtl/simd_fpu_pkg.vhd
+\end{lstlisting}
+\end{framed}
+
+The synthesis effort levels are modified by searching for the part of the command which sets the effort level within the \texttt{simd\_fpu.rc} script file and replacing the original value with either high or low, as shown below.
+
+\begin{framed}
+\begin{lstlisting}
+sed -i "s/-effort low/-effort high/g" scripts/simd_fpu.rc
+\end{lstlisting}
+\end{framed}
+
+The timing constraints for the synthesis of the FPU design is modified in two steps: the first step is to set the clock definition. This value is set to either 10ns, 5ns, or 2.5ns, depending on the stage of the script, and is stored in pico seconds. The second step is to set the external input delays which are equal to the clock time divided by 2. 
+
+\begin{framed}
+\begin{lstlisting}
+clock_time=$(echo "$clock_time * divmul_const" | bc)
+prev_time=$input_time
+input_time=$(echo "clock_time / divmul_const" | bc)
+
+sed -i -e "s/\(define_clock -name clk -p \).*/\1$clock_time clk/" scripts/simd_fpu.rc
+sed -i "s/$prev_time.0/$input_time/g"
+\end{lstlisting}
+\end{framed}
+
+The automation script first synthesises the FPU design for a clock of 2.5ns and increases this value by multiplying the clock by 2, up to 10ns. Once synthesis and implementation is complete for 10ns, the clock value is replaced by 2.5ns and the cycle repeats. For each set of timing constraints, the synthesis script runs for high level effort, and then low level effort before changing the timing constraints to a new value. Overall, for each lane value, the number of synthesis/implementation sequences ran before the while loop iterates is 6.
+\newline
+
+The Cadence RC synthesis script is executed using the following command:
+
+\begin{framed}
+\begin{verbatim}
+rc -f scripts/simd_fpu.rc
+\end{verbatim}
+\end{framed}
+
+The encounter script for Cadence's SoC Encounter is executed using the following command.
+
+\begin{framed}	
+\begin{verbatim}
+encounter -64 -init scripts/simd_fpu.enc
+\end{verbatim}
+\end{framed}
+
+Once the Synthesis and implementation process is complete, multiple lines of data is fetched from log files generated by the tools using the \texttt{grep} command \cite{grep}. Data collected is stored in an intermediate res.txt file and then the \texttt{awk} command is used to fetch specific pieces of data from the lines stored in the res.txt file. data collected using the \texttt{awk} command is then stored the res.csv file. An image of the contents of the res.csv file from a complete automation campaign is displayed in Fig.\ref{fig_res}.
+
+\begin{framed}
+\begin{lstlisting}
+grep "Total area of chip" summaryReport.rpt > res.txt
+var1=`awk '{print $5}' res.txt`
+\end{lstlisting}
+\end{framed}
+
+\begin{figure}[!t]
+	\centering
+	\includegraphics[width=3.5in]{csv}
+	\caption{Contents of the res.csv file showing the intended layout}
+	\label{fig_res}
+\end{figure}
+
+The last action the script takes is to delete the log files generated by the tools. This is done due to restrictions imposed on the automation script preventing the use of \texttt{ls -t} command to do a directory wide search for a files with the extension .log*. The \texttt{-t} parameter filters the results based on the time they were created which, when combined with the trailing\texttt{| head -1} parameter, would result in the newest file created with the .log* returned as the result. However, because this action cannot be performed from the script, instead of searching for the newest created file amongst many files, the \texttt{rm} command is used to make sure that any new files created are the only files present with the matching file extension. 
+
+\begin{framed}
+\begin{verbatim}
+rm rc.log
+rm encounter.log
+rm rc.cmd
+rm encounter.logv
+rm encounter.cmd
+\end{verbatim}
+\end{framed}
+
+This way the script can guarantee that any new files created have a particular file extension, which while not ideal, works for this application of automation as key data points from those files are being stored to a separate file.
+
+\section{Results}
+Overall, twenty four different configurations of the SIMD FPU were synthesised and implemented: twelve high effort and twelve low effort configurations. Contained within both sets are four different SIMD lane configurations: three sets for two SIMD lanes, three sets for four SIMD lanes, three sets for eight SIMD lanes, and three sets for sixteen SIMD lanes. These configurations are the different combinations of clock timings: 10ns, 5ns and 2.5ns.  The recorded area and timing results for high level compiler effort are displayed in table \ref{table_example}. Results for low level compiler effort are shown in table \ref{table_example2}.
+\newline
+
+\begin{table}[!t]
+	\renewcommand{\arraystretch}{1.3}
+	\caption{Timing and Area Results for High Effort Compilation}
+	\label{table_example}
+	\centering
+	\begin{tabular}{|c|c|c|c|c|c|c|}
+		\hline
+		\multirow{3}{*}{Lanes} & \multirow{3}{0.8cm}{T Req (ns)} &\multirow{3}{0.7cm}{Freq (MHz)} & \multicolumn{4}{|c|}{RC High Effort}\\  \cline{4-7}
+		&&&\multirow{2}{0.7cm}{T RC (ps)} & \multirow{2}{0.8cm}{Area RC} & \multirow{2}{0.8cm}{T Enc (ns)} & \multirow{2}{0.8cm}{Area Enc}\\
+		&&&&&&\\
+		\hline
+		\multirow{3}{*}{2}&2.5&400&0&869151&0.016&1187595.445\\
+		\cline{2-7}
+		&5.0&200&-&852090&0.017&1163219.098\\
+		\cline{2-7}
+		&10.0&100&-&841669&0.031&1153309.838\\
+		\hline
+		\multirow{3}{*}{4}&2.5&400&0&1725631&0.017&2308010.610\\
+		\cline{2-7}
+		&5.0&200&-&1694186&0.037&2262059.528\\
+		\cline{2-7}
+		&10.0&100&-&1674194&0.046&2242507.046\\
+		\hline
+		\multirow{3}{*}{8}&2.5&400&0&3448013&0.064&4534599.292\\
+		\cline{2-7}
+		&5.0&200&-&3383387&0.030&4441386.877\\
+		\cline{2-7}
+		&10.0&100&-&3338524&0.026&4399471.670\\
+		\hline
+		\multirow{3}{*}{16}&2.5&400&-&6862493&0.084&8923842.096\\
+		\cline{2-7}
+		&5.0&200&-&6756968&0.222&8766227.412\\
+		\cline{2-7}
+		&10.0&100&-&6667277&0.067&8683342.722\\
+		\hline
+	\end{tabular}
+\end{table}
+
+\begin{table}[!t]
+	\renewcommand{\arraystretch}{1.3}
+	\caption{Timing and Area Results for Low Effort Compilation }
+	\label{table_example2}
+	\centering
+	\begin{tabular}{|c|c|c|c|c|c|c|}
+		\hline
+		\multirow{3}{*}{Lanes} & \multirow{3}{0.8cm}{T Req (ns)} &\multirow{3}{0.7cm}{Freq (MHz)} & \multicolumn{4}{|c|}{RC Low Effort}\\  \cline{4-7}
+		&&&\multirow{2}{0.7cm}{T RC (ps)} & \multirow{2}{0.8cm}{Area RC} & \multirow{2}{0.8cm}{T Enc (ns)} & \multirow{2}{0.8cm}{Area Enc}\\
+		&&&&&&\\
+		\hline
+		\multirow{3}{*}{2}&2.5&400&0&884403&0.014&1202062.003\\
+		\cline{2-7}
+		&5.0&200&-&881503&0.034&1192056.823\\
+		\cline{2-7}
+		&10.0&100&-&855507&0.024&1164884.717\\
+		\hline
+		\multirow{3}{*}{4}&2.5&400&3&1758301&0.026&2337004.008\\
+		\cline{2-7}
+		&5.0&200&-&1758760&0.076&2325966.670\\
+		\cline{2-7}
+		&10.0&100&-&1702128&0.033&2265965.394\\
+		\hline
+		\multirow{3}{*}{8}&2.5&400&0&3505140&0.126&4565965.394\\
+		\cline{2-7}
+		&5.0&200&-&3485128&0.182&4532412.024\\
+		\cline{2-7}
+		&10.0&100&-&3396544&0.204&4446837.268\\
+		\hline
+		\multirow{3}{*}{16}&2.5&400&-&7051710&-&8923842.096\\
+		\cline{2-7}
+		&5.0&200&-&6983309&0.125&8982284.0.36\\
+		\cline{2-7}
+		&10.0&100&-&6780078&0.036&8774380.068\\
+		\hline
+	\end{tabular}
+\end{table}
+
+Figs. \ref{fig_bar1} and \ref{fig_bar2} shows a comparison between the RC effort levels, the number of lanes and clock timings, and the impact it has on the design area. As the number of lanes present increase by 100\%, the area of the design also increases by roughly 100\%. This shows a positive relation between the number of lanes and the area of the design. For different levels effort, the charts show that  when target a low effort level, compiler  produces area values that are marginally higher than when a high level of compiler effort is targeted. As the clock timings for the design is increased from 2.5ns to 10ns, it can be seen that the area of the design decreases be a slight amount. As the timing constraints on the design are relaxed, the design can optimised and validated for a smaller design area. 
+\newline
+
+\begin{figure}[!t]
+	\centering
+	\includegraphics[width=3.5in]{arearcchart}
+	\caption{Bar Chart Comparison of RC Area Results}
+	\label{fig_bar1}
+\end{figure}
+
+\begin{figure}[!t]
+	\centering
+	\includegraphics[width=3.5in]{areaencchart}
+	\caption{Bar Chart Comparison of Enc Area Results}
+	\label{fig_bar2}
+\end{figure}
+
+
+Out of all 24 data sets, the automation script only managed to fetch RC timing values for 6 configurations, each of which were configured for a clock speed of 2.5ns. This result could be due to the method used to extract data from the files produced by the RC tool and requires further investigation.
+
+\section{Conclusion}
+Due to the large number of configurations, the automation script to upwards of around ~sixteen hours to complete. This factor alone demonstrates the importance of process automation for large scale repetitive tasks executed in a UNIX/Linux environment.
+\newline
+
+For Future work, changes need to be made to the automation script to improve the consistency when reading data from log and report files generated by the Cadence tools. 
+
+\begin{thebibliography}{1}
+
+\bibitem{SIMD}
+V.A.~Chouliaras, V.M.~Dwyer, S.~Agha, J.L.~Nunez-Yanez, D.~Reisis, K.~Nakos and K.~Manolopoulos, ``Customization of an embedded RISC CPU with SIMD extensions for video encoding: A case study'', Elsevier Press Integration: The VLSI Journal 
+
+\bibitem{xming}
+Xming X Server,
+http://www.straightrunning.com/XmingNotes/ 
+
+\bibitem{putty}
+PuTTY FAQ,
+https://www.chiark.greenend.org.uk/~sgtatham/putty/faq.html\#faq\-what 
+
+\bibitem{sed}
+Advanced Bash-Scripting Guide: Appendix C. A Sed and Awk Micro-Primer, https://www.tldp.org/LDP/abs/html/x23170.html 
+
+\bibitem{grep}
+Advanced Bash-Scripting Guide: Chapter 16. External Filters, Programs and Commands, \newline
+https://www.tldp.org/LDP/abs/html/textproc.html\#GREPREF 
+
+\bibitem{encounter}
+Place and Route with SoC Encounter, Vlsicad.ucsd.edu,
+https://vlsicad.ucsd.edu/courses/ece260b-w04/Lab2/
+
+\end{thebibliography}
+%\newpage
+\appendices
+\section{Automation script}
+%\onecolumn
+	\begin{lstlisting}	
+		#!/bin/bash
+		#
+		#############################
+		declare -i init_time
+		declare -i init_lanes
+		declare -i divmul_const
+		declare -i clock_time
+		declare -i input_time
+		declare -i new_lanes
+		declare -i prev_time
+		declare -i counter
+		#############################
+		iterations=$1
+		init_lanes=2 ## variable input
+		init_time=2500 ##time in pico seconds
+		divmul_const=2
+		varhigh=high
+		counter=0
+		#############################
+		echo "Lanes				RC Effort low						RC Effort high" > res.csv
+		echo "	Treq	Freq	T(RC)	Area(RC)	T(Enc)	Area(Enc)	Freq	T(RC)	Area(RC)	T(Enc)	Area(Enc)" >> res.csv
+		#############################
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#############################
+		# loop content
+		while [  $counter -lt $1 ]; do
+		
+		clock_time=$init_time
+		input_time=$(echo "$clock_time / $divmul_const" | bc)
+		
+		echo $init_lanes
+		echo $clock_time
+		echo $input_time
+		echo $prev_time	
+		#########################
+		# edit files for high effort, 
+		sed -i "s/-effort low/-effort high/g" scripts/simd_fpu.rc
+		sed -i -e "s/\(LANES : integer := \).*/\1$init_lanes;/" rtl/simd_fpu_pkg.vhd
+		sed -i -e "s/\(define_clock -name clk -p \).*/\1$clock_time clk/" scripts/simd_fpu.rc
+		sed -i "s/5000.0/$input_time.0/g" scripts/simd_fpu.rc
+		#########################
+		# execute synthesis and implementation
+		rc -f scripts/simd_fpu.rc
+		encounter -64 -init scripts/simd_fpu.enc
+		#########################
+		# get values for high effort
+		grep "Total area of Chip" summaryReport.rpt > res.txt
+		var1=`awk '{print $5}' res.txt`
+		echo "$var1"
+		
+		grep "WNS (ns):" encounter.log | tail -2 > res.txt
+		var4=`awk '{print $10}' res.txt`
+		echo "$var4" > res.txt
+		var6=$( tail -2  res.txt | head -1)
+		var7=$( tail -1  res.txt | head -1)
+		echo "$var6"
+		echo "$var7"
+		
+		grep -A2 "Instance  Cells  Cell Area  Net Area  Total Area " rc.log > res.txt
+		var5=`awk '{print $5}' res.txt`
+		echo "$var5" > res.txt
+		var8=$( tail -1  res.txt | head -1)
+		echo "$var8"
+		
+		grep -A2 " Slack                                          Endpoint                                         Cost Group" rc.log > res.txt
+		var9=`awk '{print $1}' res.txt`
+		echo "$var9" > res.txt
+		var10=$( tail -1  res.txt | head -1)
+		echo "$var10"
+		#########################
+		#delete files created from process
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#########################
+		#edit file for low effort
+		sed -i "s/-effort high/-effort low/g" scripts/simd_fpu.rc
+		#########################
+		#repeat synthesis implementation process
+		rc -f scripts/simd_fpu.rc
+		encounter -64 -init scripts/simd_fpu.enc
+		#########################
+		# get values for low effort
+		grep "Total area of Chip" summaryReport.rpt > res.txt
+		var2=`awk '{print $5}' res.txt`
+		echo "$var2"
+		
+		grep "WNS (ns):" encounter.log | tail -2 > res.txt
+		var4=`awk '{print $10}' res.txt`
+		echo "$var4" > res.txt
+		var6=$( tail -2  res.txt | head -1)
+		var3=$( tail -1  res.txt | head -1)
+		echo "$var6"
+		echo "$var3"
+		
+		grep -A2 "Instance  Cells  Cell Area  Net Area  Total Area " rc.log > res.txt
+		var5=`awk '{print $5}' res.txt`
+		echo "$var5" > res.txt
+		var11=$( tail -1  res.txt | head -1)
+		echo "$var11"
+		
+		grep -A2 " Slack                                          Endpoint                                         Cost Group" rc.log > res.txt
+		var9=`awk '{print $1}' res.txt`
+		echo "$var9" > res.txt
+		var12=$( tail -1  res.txt | head -1)
+		echo "$var12"	
+		#######################
+		#delete files
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#######################
+		#print values to .scv
+		echo "$init_lanes	2.5	400	$var12	$var11	$var3	$var2	400	$var10	$var8	$var7	$var1" >> res.csv
+		#######################
+		#######################
+		echo "########## Part 1/3 complete ##########"
+		#######################
+		clock_time=$(echo "$clock_time * $divmul_const" |bc)
+		prev_time=$input_time
+		input_time=$(echo "$clock_time / $divmul_const" | bc)
+		#
+		echo $init_lanes
+		echo $clock_time
+		echo $input_time
+		echo $prev_time
+		#########################
+		sed -i "s/-effort low/-effort high/g" scripts/simd_fpu.rc
+		sed -i -e "s/\(LANES : integer := \).*/\1$init_lanes;/" rtl/simd_fpu_pkg.vhd
+		sed -i -e "s/\(define_clock -name clk -p \).*/\1$clock_time clk/" scripts/simd_fpu.rc
+		sed -i "s/$prev_time.0/$input_time.0/g" scripts/simd_fpu.rc
+		#########################
+		rc -f scripts/simd_fpu.rc
+		encounter -64 -init scripts/simd_fpu.enc
+		#########################
+		#get values for high effort
+		grep "Total area of Chip" summaryReport.rpt > res.txt
+		var1=`awk '{print $5}' res.txt`
+		echo "$var1"
+		#
+		grep "WNS (ns):" encounter.log | tail -2 > res.txt
+		var4=`awk '{print $10}' res.txt`
+		echo "$var4" > res.txt
+		var6=$( tail -2  res.txt | head -1)
+		var7=$( tail -1  res.txt | head -1)
+		echo "$var6"
+		echo "$var7"
+		#
+		grep -A2 "Instance  Cells  Cell Area  Net Area  Total Area " rc.log > res.txt
+		var5=`awk '{print $5}' res.txt`
+		echo "$var5" > res.txt
+		var8=$( tail -1  res.txt | head -1)
+		echo "$var8"
+		#
+		grep -A2 " Slack                                          Endpoint                                         Cost Group" rc.log > res.txt
+		var9=`awk '{print $1}' res.txt`
+		echo "$var9" > res.txt
+		var10=$( tail -1  res.txt | head -1)
+		echo "$var10"
+		#########################
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#########################
+		sed -i -e "s/-effort high/-effort low/g" scripts/simd_fpu.rc
+		#########################
+		rc -f scripts/simd_fpu.rc
+		encounter -64 -init scripts/simd_fpu.enc
+		#########################
+		# get value for low effort
+		grep "Total area of Chip" summaryReport.rpt > res.txt
+		var2=`awk '{print $5}' res.txt`
+		echo "$var2"
+		#
+		grep "WNS (ns):" encounter.log | tail -2 > res.txt
+		var4=`awk '{print $10}' res.txt`
+		echo "$var4" > res.txt
+		var6=$( tail -2  res.txt | head -1)
+		var3=$( tail -1  res.txt | head -1)
+		echo "$var6"
+		echo "$var3"
+		#
+		grep -A2 "Instance  Cells  Cell Area  Net Area  Total Area " rc.log > res.txt
+		var5=`awk '{print $5}' res.txt`
+		echo "$var5" > res.txt
+		var11=$( tail -1  res.txt | head -1)
+		echo "$var11"
+		#
+		grep -A2 " Slack                                          Endpoint                                         Cost Group" rc.log > res.txt
+		var9=`awk '{print $1}' res.txt`
+		echo "$var9" > res.txt
+		var12=$( tail -1  res.txt | head -1)
+		echo "$var12"	
+		#########################
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#########################
+		echo "$init_lanes	5.0	200	$var12	$var11	$var3	$var2	200	$var10	$var8	$var7	$var1" >> res.csv
+		#########################
+		echo "########## Part 2/3 complete ##########"
+		#########################
+		clock_time=$(echo "$clock_time * $divmul_const" | bc)
+		prev_time=$input_time
+		input_time=$(echo "$clock_time / $divmul_const" | bc)
+		#
+		echo $init_lanes
+		echo $clock_time
+		echo $input_time
+		echo $prev_time
+		#########################
+		sed -i "s/-effort low/-effort high/g" scripts/simd_fpu.rc
+		sed -i -e "s/\(LANES : integer := \).*/\1$init_lanes;/" rtl/simd_fpu_pkg.vhd
+		sed -i -e "s/\(define_clock -name clk -p \).*/\1$clock_time clk/" scripts/simd_fpu.rc
+		sed -i "s/$prev_time.0/$input_time.0/g" scripts/simd_fpu.rc
+		#########################
+		rc -f scripts/simd_fpu.rc
+		encounter -64 -init scripts/simd_fpu.enc
+		#########################
+		# get values for high effort
+		grep "Total area of Chip" summaryReport.rpt > res.txt
+		var1=`awk '{print $5}' res.txt`
+		echo "$var1"
+		#
+		grep "WNS (ns):" encounter.log | tail -2 > res.txt
+		var4=`awk '{print $10}' res.txt`
+		echo "$var4" > res.txt
+		var6=$( tail -2  res.txt | head -1)
+		var7=$( tail -1  res.txt | head -1)
+		echo "$var6"
+		echo "$var7"
+		#
+		grep -A2 "Instance  Cells  Cell Area  Net Area  Total Area " rc.log > res.txt
+		var5=`awk '{print $5}' res.txt`
+		echo "$var5" > res.txt
+		var8=$( tail -1  res.txt | head -1)
+		echo "$var8"
+		#
+		grep -A2 " Slack                                          Endpoint                                         Cost Group" rc.log > res.txt
+		var9=`awk '{print $1}' res.txt`
+		echo "$var9" > res.txt
+		var10=$( tail -1  res.txt | head -1)
+		echo "$var10"
+		#########################
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#########################
+		sed -i "s/-effort high/-effort low/g" scripts/simd_fpu.rc
+		#########################
+		rc -f scripts/simd_fpu.rc
+		encounter -64 -init scripts/simd_fpu.enc
+		#########################
+		# get values for low effort
+		grep "Total area of Chip" summaryReport.rpt > res.txt
+		var2=`awk '{print $5}' res.txt`
+		echo "$var2"
+		#
+		grep "WNS (ns):" encounter.log | tail -2 > res.txt
+		var4=`awk '{print $10}' res.txt`
+		echo "$var4" > res.txt
+		var6=$( tail -2  res.txt | head -1)
+		var3=$( tail -1  res.txt | head -1)
+		echo "$var6"
+		echo "$var3"
+		#
+		grep -A2 "Instance  Cells  Cell Area  Net Area  Total Area " rc.log > res.txt
+		var5=`awk '{print $5}' res.txt`
+		echo "$var5" > res.txt
+		var11=$( tail -1  res.txt | head -1)
+		echo "$var11"
+		#
+		grep -A2 " Slack                                          Endpoint                                         Cost Group" rc.log > res.txt
+		var9=`awk '{print $1}' res.txt`
+		echo "$var9" > res.txt
+		var12=$( tail -1  res.txt | head -1)
+		echo "$var12"	
+		#########################
+		rm rc.log
+		rm encounter.log
+		rm rc.cmd
+		rm encounter.logv
+		rm encounter.cmd
+		#########################
+		echo "$init_lanes	10.0	100	$var12	$var11	$var3	$var2	100	$var10	$var8	$var7	$var1" >> res.csv
+		#########################
+		echo "##########\nPart 3/3 complete\n##########"
+		#########################
+		echo "Iteration $counter Complete"
+		init_lanes=$(echo "$init_lanes * $divmul_const" | bc)
+		let counter=counter+1
+		#########################
+		done
+		#end loop content
+		#############################
+	\end{lstlisting}
+
+\section{SIMD\_FPU Schematic}
+
+% that's all folks
+\end{document}
+
+
