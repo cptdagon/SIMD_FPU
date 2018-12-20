@@ -1,0 +1,24 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity simd_fpu is
+
+    port
+      (
+        clk : in std_logic;
+        reset : in std_logic;
+        addr : in std_logic_vector(7 downto 0);
+        wrdata : in std_logic_vector(31 downto 0);
+        rd : in std_logic;
+        wr : in std_logic;
+        rddata : out std_logic_vector(31 downto 0)
+      );
+    
+  end simd_fpu;
+
+  architecture rtl of simd_fpu is
+
+  begin
+
+
+  end rtl;

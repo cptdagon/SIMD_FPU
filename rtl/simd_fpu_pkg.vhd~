@@ -1,0 +1,114 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+package simd_fpu_pkg is
+  -- Main parameter
+  constant LANES : integer := ;
+
+  -- Functions
+  function log2 ( a : in integer ) return integer;
+
+  -- SIMD_FPU can be in either DBG or MISSION mode
+  type modeT is (DBG, MISSION);
+  
+  -- Supported commands
+  type cmdT is (NOP, WRRAMA, WRRAMB, WRRAMZ, RDRAMA, RDRAMB, RDRAMZ, FADD, FSUB, FMULT, FDIV, FEXP2, I2F, F2I, LOG2);
+  
+  type laneiT is record
+    mode : modeT;
+    addr : std_logic_vector(7 downto 0);
+    din : std_logic_vector(31 downto 0);
+    cmd : cmdT;
+  end record;
+
+  type dpiT is record
+    addr : std_logic_vector(7 downto 0);
+    opra : std_logic_vector(31 downto 0);
+    oprb : std_logic_vector(31 downto 0);
+    cmd : cmdT;
+  end record;
+  constant dpiT_INIT : dpiT := (opra => (others=>'0'), oprb => (others=>'0'), cmd => NOP, addr=>(others=>'0'));
+  -- Initializer
+  constant laneiT_INIT : laneiT := (mode => DBG, addr => (others=>'0'),din => (others=>'0'), cmd => NOP);
+
+  type laneoT is record
+    dout : std_logic_vector(31 downto 0);
+  end record;
+  
+  -- Initializer
+  constant laneoT_INIT : laneoT := (dout=>(others=>'0'));
+
+  type dpoT is record
+    addr : std_logic_vector(7 downto 0);
+    res : std_logic_vector(31 downto 0);
+    cmd : cmdT;
+  end record;
+  constant dpoT_INIT : dpoT := (res => (others=>'0'), cmd => NOP,addr=>(others=>'0'));
+
+  
+  
+  type allLaneoT is array (0 to LANES-1) of laneoT;
+  -- Initializer
+  constant allLaneoT_INIT : allLaneoT := (others=>laneoT_INIT);
+  
+  type allLaneiT is array (0 to LANES-1) of laneiT;
+  -- Initializer
+  constant allLaneiT_INIT : allLaneiT := (others=>laneiT_INIT);
+  
+  -- Programmers model
+  constant ADDR_REG : integer := 0; -- R/W
+  constant WRDATA_REG : integer := 4; -- R/W
+  constant RDDATA_REG : integer := 8; -- R
+  constant CMD_REG : integer := 16#c#; -- W
+  constant MODE_REG : integer := 16#10#; -- R
+  constant BUSY_REG : integer := 16#14#; -- R
+end package;
+
+
+package body simd_fpu_pkg is
+  ----------------------------------------------------------------------
+  function log2 ( a : in integer ) return integer is
+  variable res : integer := 0;
+  begin
+    
+    if (a=0)  then
+      assert (false) report "log2 called with 0 arg" severity ERROR;
+    elsif (a < 0) then
+      assert (false) report "log2 called with -ve arg" severity ERROR;
+    elsif (a=1 or a =2) then
+      res := 1;
+    elsif (a=3 or a=4) then
+      res := 2;
+    elsif (a>4 and a<=8) then
+      res := 3;
+    elsif (a>8 and a<=16) then
+      res := 4;
+    elsif (a>16 and a<=32) then
+      res := 5;
+    elsif (a>32 and a<=64) then
+      res := 6;
+    elsif (a>64 and a<=128) then
+      res := 7;
+    elsif (a>128 and a<=256) then
+      res := 8;
+    elsif (a>256 and a<=512) then
+      res := 9;
+    elsif (a>512 and a<=1024) then
+      res := 10;
+    elsif (a>1024 and a<=2048) then
+      res := 11;
+    elsif (a>2048 and a<=4096) then
+      res := 12;
+    elsif (a>4096 and a<=8192) then
+      res := 13;
+    elsif (a>8192 and a<=16384) then
+      res := 14;
+    elsif (a>16384 and a<=32768) then
+      res := 15;
+    end if;
+
+    return(res);
+  end;
+
+
+end;

@@ -1,0 +1,189 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use work.simd_fpu_pkg.all;
+use ieee.std_logic_arith.all;
+use ieee.std_logic_unsigned.all;
+
+entity dbgif is
+
+    port
+      (
+        clk : in std_logic;
+        reset : in std_logic;
+        addr : in std_logic_vector(31 downto 0);
+        wrdata : in std_logic_vector(31 downto 0);
+        rd : in std_logic;
+        wr : in std_logic;
+        rddata : out std_logic_vector(31 downto 0);
+        -- Output to all lanes
+        lanei : out allLaneiT;
+        -- Input from all lanes
+        laneo : in allLaneoT
+      );
+    
+  end dbgif;
+
+  architecture rtl of dbgif is
+
+      -- Declare the DBG FSM states type
+      type stateT is (rstST, waitDBGST, dbgST, missionST, wrRAMST, rdRAMST, rdRAMFinishST);
+      -- Declare the DBG FSM state vector
+      signal state_ir : stateT;
+      -- Declare internal registers
+      signal addr_ir : std_logic_vector(31 downto 0);
+      signal wrdata_ir : std_logic_vector(31 downto 0);
+      signal rddata_ir : std_logic_vector(31 downto 0);
+      signal mode_ir : modeT;
+        signal Busy_ir : std_logic;
+      signal cmd_ir : cmdT;
+      -- This is used to iterate over all locations
+      signal cnt_ir : std_logic_vector(7 downto 0);
+  begin
+
+      fsmProc :process(clk , reset)
+          begin
+              if reset = '1' then
+                  state_ir <= rstST;
+                    -- Clear all internal registers
+                    addr_ir <= (others=>'0');
+                    wrdata_ir <= (others=>'0');
+                    rddata_ir <= (others=>'0');
+                    addr_ir <= (others=>'0');
+                    mode_ir <= DBG;
+                    Busy_ir <= '0';
+                    lanei <= allLaneiT_INIT;
+                    cmd_ir <= NOP;
+                    cnt_ir <= (others=>'0');
+              elsif rising_edge(clk) then
+                  -- Always code FSMs this way (case statement for state vector)
+                  case state_ir is
+                      when rstST =>
+                          -- Clear all internal registers
+                          addr_ir <= (others=>'0');
+                          wrdata_ir <= (others=>'0');
+                          rddata_ir <= (others=>'0');
+                          addr_ir <= (others=>'0');
+                          mode_ir <= DBG;
+                            Busy_ir <= '0';
+                            -- After reset, go to waitST
+                          state_ir <= waitDBGST;
+                      when missionST =>
+                          -- Apply command, address to all lanes
+                          for i in 0 to LANES-1 loop
+                              lanei(i).cmd <= cmd_ir;
+                              lanei(i).addr <= cnt_ir;
+                              lanei(i).mode <= MISSION;
+                          end loop;
+                          -- Decrement counter and jump back to dbgST when 0
+                          cnt_ir <= cnt_ir + 1;
+                          if conv_integer(cnt_ir) = 16#ff# then
+                              state_ir <= waitDBGST;
+                              Busy_ir <= '0';
+                                for i in 0 to LANES-1 loop
+                                    lanei(i).mode <= DBG;
+                                  end loop;
+                                
+                          end if;
+                      when wrRAMST =>
+                          -- De-assert command and proceed to waitDBGST
+                          if LANES=1 then
+                          lanei(0).cmd <= NOP;
+                          else
+                          lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).cmd <= NOP;
+                          end if;
+                            Busy_ir <= '0';
+                            state_ir <= waitDBGST;
+                            
+                      when rdRAMST =>
+                          -- De-assert command and proceed to latch data
+                          if LANES=1 then
+                              lanei(0).cmd <= NOP;
+                          else
+                          lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).cmd <= NOP;
+                          end if;
+                            state_ir <= rdRAMFinishST;
+                        when rdRAMFinishST =>
+                          -- Capture data
+                          if LANES=1 then
+                              rddata_ir <=  laneo(0).dout;
+                          else
+                              rddata_ir <=  laneo(conv_integer(addr_ir(log2(LANES)-1 downto 0))).dout;
+                          end if;
+                            Busy_ir <= '0';
+                            state_ir <= waitDBGST;
+                      when waitDBGST =>
+                          -- At the waitDBGST, wait for registers to be written
+                          if wr = '1' then
+                              case conv_integer(addr) is
+                                  when ADDR_REG => addr_ir <= wrdata(31 downto 0);
+                                  when WRDATA_REG => wrdata_ir <= wrdata;
+                                  --when MODE_REG => mode_ir <= modeT'val(modeT'pos(conv_integer(addr(0))));
+                                when CMD_REG =>
+                                      case cmdT'val((conv_integer(wrdata(2 downto 0)))) is
+                                          when WRRAMA | WRRAMB | WRRAMZ =>
+                                              -- goto wrRAMST to complete
+                                              Busy_ir <= '1';
+                                                -- Latch data
+                                                if LANES = 1 then
+                                                    lanei(0).din <= wrdata_ir;
+                                                      lanei(0).addr <= addr_ir(7 downto 0);
+                                                      lanei(0).cmd <=  cmdT'val((conv_integer(wrdata(2 downto 0))));
+                                                else
+                                                lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).din <= wrdata_ir;
+                                                lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).addr <= addr_ir(7 downto 0);
+                                                  lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).cmd <=  cmdT'val((conv_integer(wrdata(2 downto 0))));
+                                              state_ir <= wrRAMST;
+                                                  end if;
+                                          when RDRAMA | RDRAMB | RDRAMZ=>
+                                              -- Goto rdRAMST to complete
+                                              Busy_ir <= '1';
+                                                -- Latch data
+                                                if LANES = 1 then
+                                                    --lanei(0).din <= wrdata_ir;
+                                                      lanei(0).addr <= addr_ir(7 downto 0);
+                                                      lanei(0).cmd <= cmdT'val((conv_integer(wrdata(2 downto 0))));
+                                                else
+                                                --lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).din <= wrdata_ir;
+                                                lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).addr <= addr_ir(7 downto 0);
+                                                
+                                                lanei(conv_integer(addr_ir(log2(LANES)-1 downto 0))).cmd <= cmdT'val((conv_integer(wrdata(2 downto 0))));
+                                                end if;
+                                                state_ir <=  rdRAMST;
+                                          when FADD | FSUB | FMULT =>
+                                              -- Latch command and go to mission mode
+                                              cmd_ir <=  cmdT'val((conv_integer(wrdata(2 downto 0))));
+                                              Busy_ir <= '1';
+                                              state_ir <= missionST;
+                                          when others=>
+                                              -- Do nothing
+                                        end case;
+                                   when others =>
+                                      -- Do nothing
+                                                     
+                              end case;
+                          end if;
+                      when others=>
+                          -- Something went horribly wrong - Jump back to rstST;
+                  end case;
+                  -- Now, based on the mode, perform the following
+                  
+
+              end if;
+          end process;
+
+            -- Output data proc
+            outDataProc : process(rd, addr, addr_ir, rddata_ir, wrdata_ir, Busy_ir)
+                begin
+                    -- Default assignments
+                    rddata <= (others=>'0');--conv_std_logic_vector(16#b16beef#,32);
+                      if rd = '1' then
+                          case conv_integer(addr) is
+                              when ADDR_REG => rddata(31 downto 0) <= addr_ir;
+                              when RDDATA_REG => rddata <= rddata_ir;
+                              when WRDATA_REG => rddata <= wrdata_ir;
+                              when BUSY_REG => rddata(0) <= busy_ir;
+                              when others => 
+                            end case;
+                      end if;
+                  end process;
+  end rtl;
