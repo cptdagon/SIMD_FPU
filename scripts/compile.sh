@@ -1,0 +1,13 @@
+vlog /eda/cadence/2014-15/RHELx86/RC_14.11.000/tools/lib/chipware/sim/verilog/CW/CW_fp_addsub.v
+vlog /eda/cadence/2014-15/RHELx86/RC_14.11.000/tools/lib/chipware/sim/verilog/CW/CW_fp_mult.v
+#vlog /eda/cadence/2014-15/RHELx86/RC_14.11.000/tools/lib/chipware/sim/verilog/CW/CW_fp_div.v
+#vlog /eda/cadence/2014-15/RHELx86/RC_14.11.000/tools/lib/chipware/sim/verilog/CW/CW_fp_exp2.v
+#vlog /eda/cadence/2014-15/RHELx86/RC_14.11.000/tools/lib/chipware/sim/verilog/CW/CW_fp_i2flt.v
+#vlog /eda/cadence/2014-15/RHELx86/RC_14.11.000/tools/lib/chipware/sim/verilog/CW/CW_fp_flt2i.v
+vcom rtl/simd_fpu_pkg.vhd
+vlog ram/ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN.v
+vcom rtl/dbgif.vhd
+vcom rtl/datapath.vhd
+vcom rtl/lane.vhd
+vcom rtl/simd_fpu.vhd
+vcom rtl/tb_simd_fpu.vhd

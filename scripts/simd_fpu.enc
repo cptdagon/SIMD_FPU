@@ -1,0 +1,214 @@
+################################################
+# Reference encounter script for TSMC0.13
+# Run using: encounter -64 -cmd enc.cmd -log enc.log -init scripts/simd_fpu.enc
+# Note: You can run encounter in batch mode by adding the -nowin switch to the
+# 	command line above 
+# v.a.chouliaras@lboro.ac.uk
+################################################
+
+################################################
+# Step 1: Default switches for Encounter
+################################################
+set_global _enable_mmmc_by_default_flow      $CTE::mmmc_default
+suppressMessage ENCEXT-2799
+win
+
+setMultiCpuUsage -localCpu 8 -cpuPerRemoteHost 1 -remoteHost 0 -keepLicense true
+setDistributeHost -local
+
+setDesignMode -process 130
+setAnalysisMode -analysisType onChipVariation
+
+################################################
+# Step 2: Design import
+################################################
+create_constraint_mode -name myConstraints -sdc_files simd_fpu.rc.sdc
+create_library_set -name tsmc_slow -timing {libs/slow.lib ram/ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN_slow_syn.lib}
+#create_library_set -name tsmc_typ -timing {libs/typical.lib ram/ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN_typical_syn.lib}
+create_library_set -name tsmc_fast -timing {libs/fast.lib ram/ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN_fast_syn.lib }
+create_rc_corner -name rcMax -qx_lib_file libs/slow.lib
+create_rc_corner -name rcMin -qx_lib_file libs/fast.lib
+create_delay_corner -name dcMax -library_set tsmc_slow -rc_corner rcMax
+create_delay_corner -name dcMin -library_set tsmc_fast -rc_corner rcMin
+create_analysis_view -name avSetup -delay_corner dcMax -constraint_mode myConstraints
+create_analysis_view -name avHold -delay_corner dcMin -constraint_mode myConstraints
+setBufFootPrint { BUFX2 BUFX12 BUFX16 BUFX20 BUFX3 CLKBUFX2 BUFX4 BUFX6 BUFX8 CLKBUFX12 CLKBUFX16 CLKBUFX20 CLKBUFX3 CLKBUFX4 CLKBUFX6 CLKBUFX8 }
+setInvFootPrint { CLKINVX1 CLKINVX2 CLKINVX12 CLKINVX16 CLKINVX20 CLKINVX3 CLKINVX4 CLKINVX6 CLKINVX8 INVX1 INVX2 INVX12 INVX16 INVX20 INVX3 INVX4 INVX6 INVX8}
+#delay footprint
+setDelayFootPrint {BUFX20  BUFX16 BUFX8}
+set init_gnd_net VSS
+set init_lef_file {lef/tsmc13_hs_8lm.lef lef/tsmc13_hs_8lm_antenna.lef ram/ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN.vclef ram/ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN_ant.lef}
+set init_verilog simd_fpu.rc.v
+
+set init_pwr_net VDD
+init_design -setup avSetup -hold avHold
+
+
+#globalNetConnect
+globalNetConnect VSS -all -type tielo
+globalNetConnect VDD -all -type tiehi
+
+
+################################################
+# Step 3: Initialize floorplan
+################################################
+floorPlan -site cnx4site -r 0.5 0.7 20 20 20 20
+#floorPlan -site tsm12site -r 0.5 0.7 20 20 20 20
+
+
+#cac
+################################################
+# Step 4: Power planning
+################################################
+
+addRing -skip_via_on_wire_shape Noshape -skip_via_on_pin Standardcell -center 1 -stacked_via_top_layer METAL8 -type core_rings -jog_distance 0.51 -threshold 0.51 -nets {VSS VDD} -follow core -stacked_via_bottom_layer METAL1 -layer METAL8 -width 9 -spacing 2 -offset 0
+addStripe -set_to_set_distance 100 -stacked_via_top_layer METAL8 -spacing 1 -merge_stripes_value 0.5 -layer METAL7 -width 10 -nets {VSS VDD } -stacked_via_bottom_layer METAL7
+fit
+saveDesign simd_fpu.fplanned.enc
+#cac
+
+
+################################################
+# Step 6: Complete power planning with
+#      	  placed cells
+################################################
+
+sroute -connect { blockPin padPin padRing corePin floatingStripe } -layerChangeRange { METAL1 METAL8 } -blockPinTarget { nearestTarget } -padPinPortConnect { allPort oneGeom } -padPinTarget { nearestTarget } -corePinTarget { firstAfterRowEnd } -floatingStripeTarget { blockring padring ring stripe ringpin blockpin followpin } -allowJogging 1 -crossoverViaLayerRange { METAL1 METAL8 } -nets { VDD VSS } -allowLayerChange 1 -blockPin useLef -targetViaLayerRange { METAL1 METAL8 }
+
+################################################
+# Step 5: Standard cell placement
+################################################
+setPlanDesignMode -boundaryPlace true -congAware true -keepGuide true -effort high -useSdpGroup true -useFlexModel fence
+planDesign
+#cac
+setPlaceMode -fp false -contextAwareLegal true  -doRPlace true -hardFence true
+placeDesign -inPlaceOpt -prePlaceOpt
+legalizeFPlan -checkOri  -checkSite
+#cac
+################################################
+# Step 6: Complete power planning with
+#      	  placed cells
+################################################
+
+#sroute -connect { blockPin padPin padRing corePin floatingStripe } -layerChangeRange { METAL1 METAL8 } -blockPinTarget #{ nearestTarget } -padPinPortConnect { allPort oneGeom } -padPinTarget { nearestTarget } -corePinTarget { firstAfterRowEnd } -#floatingStripeTarget { blockring padring ring stripe ringpin blockpin followpin } -allowJogging 1 -crossoverViaLayerRange { METAL1 #METAL8 } -nets { VDD VSS } -allowLayerChange 1 -blockPin useLef -targetViaLayerRange { METAL1 METAL8 }
+
+#saveDesign simd_fpu.placed.enc
+#cac
+################################################
+# Step 7: Clock-tree synthesis
+################################################
+changeClockStatus -all -noFixedLeafInst -noFixedNonLeafInst
+deleteClockTree -all
+setCTSMode -powerAware true
+createClockTreeSpec -file Clock.ctstch
+specifyClockTree -file Clock.ctstch
+clockDesign -specFile Clock.ctstch  
+
+################################################
+# Step 7a: Reset-tree synthesis (taken care of)
+################################################
+#specifyClockTree -file Reset.ctstch
+#clockDesign -specFile Reset.ctstch  -fixedInstBeforeCTS
+
+## Followed by post-CTS optimization
+setOptMode -fixCap true -fixTran true -fixFanoutLoad true
+optDesign -postCTS
+saveDesign simd_fpu.post-CTS.enc
+
+################################################
+# Step 8: Route design
+################################################
+#Set delay calculation switches modes
+setDelayCalMode -siAware true
+setAnalysisMode -analysisType onChipVariation
+#setExtractRCMode -coupled true
+extractRC
+
+#route propert using nanoroute
+setNanoRouteMode -quiet -routeInsertAntennaDiode 0
+setNanoRouteMode -quiet -timingEngine {}
+setNanoRouteMode -quiet -routeWithTimingDriven 1
+setNanoRouteMode -quiet -routeWithSiDriven 1
+setNanoRouteMode -quiet -routeWithSiPostRouteFix 0
+setNanoRouteMode -quiet -drouteStartIteration default
+setNanoRouteMode -quiet -routeTopRoutingLayer default
+setNanoRouteMode -quiet -routeBottomRoutingLayer default
+setNanoRouteMode -quiet -drouteEndIteration default
+setNanoRouteMode -quiet -routeWithTimingDriven true
+setNanoRouteMode -quiet -routeWithSiDriven true
+routeDesign -globalDetail
+
+saveDesign simd_fpu.post-route-no-opt.enc
+
+## Followed by post-route optimization
+setAnalysisMode -analysisType onChipVariation
+
+setOptMode -fixCap true -fixTran true -fixFanoutLoad true
+optDesign -postRoute
+optDesign -postRoute -hold
+saveDesign simd_fpu.post-route.enc
+
+#Extraction and final timing
+#setDelayCalMode -siAware true
+#setAnalysisMode -analysisType onChipVariation
+#setExtractRCMode -coupled true
+#extractRC
+#cac
+################################################
+# Step 9: Timing analysis
+################################################
+#timeDesign (setup) - NOTE THAT -si is not needed! Celtic will be obsoleted soon!
+timeDesign -signoff 
+
+#timeDesign (hold)
+timeDesign -signoff  -hold
+
+################################################
+# Step 10: Area report 
+################################################
+summaryReport -noHtml -outfile summaryReport.rpt
+
+################################################
+# Step 11: Add filler cells
+################################################
+addFiller -cell FILL64 FILL32 FILL16 FILL8 FILL4 FILL2 FILL1 -prefix FILLER
+#cac DefComtimi
+
+################################################
+# Step 12: Add metal fill and connect to VDD
+################################################
+addMetalFill -mesh -timingAware on -nets VDD
+
+################################################
+# Step 13: Verification: Metal Density
+################################################
+verifyMetalDensity
+
+
+################################################
+# Step 14: Verification: Geometry
+################################################
+
+setVerifyGeometryMode -area { 0 0 0 0 } -minWidth true -minSpacing true -minArea true -sameNet true -short true -overlap true -offRGrid false -offMGrid true -mergedMGridCheck true -minHole true -implantCheck true -minimumCut true -minStep true -viaEnclosure true -antenna false -insuffMetalOverlap true -pinInBlkg false -diffCellViol true -sameCellViol false -padFillerCellsOverlap true -routingBlkgPinOverlap true -routingCellBlkgOverlap true -regRoutingOnly false -stackedViasOnRegNet false -wireExt true -useNonDefaultSpacing false -maxWidth true -maxNonPrefLength -1 -error 1000
+verifyGeometry
+################################################
+# Step 15: Verification: DRC
+################################################
+verify_drc -report simd_fpu.drc.rpt -limit 1000
+
+################################################
+# Step 16: Verification: Connectivity
+################################################
+
+verifyConnectivity -type all -error 1000 -warning 50
+####
+################################################
+# Step 17: Verification: Antenna effects
+################################################
+verifyProcessAntenna -reportfile simd_fpu.antenna.rpt -error 1000
+
+saveDesign simd_fpu.final.enc
+
+exit
+
+

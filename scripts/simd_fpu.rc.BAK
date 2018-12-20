@@ -1,0 +1,310 @@
+###############################################
+### 	Step 1 : Specify search paths
+###############################################
+### First, set the library path
+set_attribute lib_search_path {. libs/ lef/ ram/}
+
+### Then, set the script path
+set_attribute script_search_path { scripts/}
+### Finally, set the RTL path
+set_attribute hdl_search_path { rtl/}
+
+
+###############################################
+### 	Step 2 : Specify Synthesis Library
+###############################################
+### Choose amongst BC (best case), TC (typical case), WC (worst case)
+set_attribute library {slow.lib ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN_slow_syn.lib}
+
+
+###############################################
+### 	Step 1a : Disread_v
+#disable certain cells to keep
+###		TSMC happy
+###############################################
+### First, set the library path
+set AVOID_CELLS <ACCSHCINX1,ACCSHCONX1,ACCSIHCONX1,ACHCINX1,ACHCONX1,ADDFHX8,ADDFX8,ADDHX8,AFCSHCINX1,AFCSHCONX1,AFCSIHCONX1,AFHCINX1,AFHCONX1,AHCSHCINX1,AHCSHCONX1,AHHCINX1,AHHCONX1,AND3BX1,AND3BX2,AND3BX4,AND3BX8,AND6X1,AND6X2,AND6X4,AND6X8,AO21BX1,AO21BX2,AO21BX4,AO21BX8,AO21X8,AO22X8,AO2B1X1,AO2B1X2,AO2B1X4,AO2B1X8,AO2B2BX1,AO2B2BX2,AO2B2BX4,AO2B2BX8,AO2B2X1,AO2B2X2,AO2B2X4,AO2B2X8,AOI211X8,AOI21B1BX1,AOI21B1BX2,AOI21B1BX4,AOI21B1BX8,AOI21BX1,AOI21BX2,AOI21BX4,AOI21BX8,AOI21X8,AOI221X8,AOI222X8,AOI22X8,AOI2B1X1,AOI2B1X2,AOI2B1X4,AOI2B1X8,,AOI2B2BX1,AOI2B2BX2,AOI2B2BX4,AOI2B2BX8,AOI2B2X1,,AOI2B2X2,AOI2B2X4,AOI2B2X8,AOI2BB1X8,AOI2BB2X8,AOI31X8,AOI32X8,AOI33X8,BMXIX1,BMXX1,BUFX1,CLKBUFX1,CLKMX4X12,CLKMX4X2,CLKMX4X4,CLKMX4X8,CLKNAND2X12,CLKNAND2X2,CLKNAND2X4,CLKNAND2X8,CLKXOR2X12,DFFQX8,DLY1X2,DLY2X2,DLY3X2,DLY4X2,DLYI1X2,DLYI1X4,DLYI2X2,DLYI2X4,DLYI3X2,DLYI3X4,DLYI4X2,DLYI4X4,NAND2BX8,NAND3BX8,NAND4BBX8,NAND4BX8,NOR2BX8,NOR3BX8,NOR4BX8,OA211X1,OA211X2,OA211X4,OA211X8,OA21X8,OA22X8,OA2B2X1,OA2B2X2,OA2B2X4,OA2B2X8,OAI211X8,OAI21BX1,OAI21BX2,OAI21BX4,OAI21BX8,OAI21X8,OAI221X8,OAI222X8,OAI22X8,OAI2B11X1,OAI2B11X2,OAI2B11X4,OAI2B11X8,OAI2B1B1X1,OAI2B1B1X2,OAI2B1B1X4,OAI2B1B1X8,OAI2B1X1,OAI2B1X2,OAI2B1X4,OAI2B1X8,OAI2B2X1,OAI2B2X2,OAI2B2X4,OAI2B2X8,OAI2BB1X8,OAI2BB2X8,OAI31X8,OAI32X8,OAI33X8,OR6X1,OR6X2,OR6X4,OR6X8,RF3R1WX1,RFBLDRVX1,RFDO1WX1,RFDO2WX1,SDFFQX8,TLATNSRX8,TLATNX8,TLATSRX8,TLATX8,XNOR2X8,XNOR3X8,XOR2X8,XOR3X8,OAI2B1B1X2,AOI2B1X2,AOI2B2X1,OAI2B2X2,OR6X2,AOI21BX1,AO2B2X2,AOI2B2BX1,AO2B2BX2>
+set_attribute avoid true ACCSHCINX1
+set_attribute avoid true ACCSHCONX1
+set_attribute avoid true ACCSHCINX1
+set_attribute avoid true ACCSHCONX1
+set_attribute avoid true ACCSIHCONX1
+set_attribute avoid true ACHCINX1
+set_attribute avoid true ACHCONX1
+set_attribute avoid true ADDFHX8
+set_attribute avoid true ADDFX8
+set_attribute avoid true ADDHX8
+set_attribute avoid true AFCSHCINX1
+set_attribute avoid true AFCSHCONX1
+set_attribute avoid true AFCSIHCONX1
+set_attribute avoid true AFHCINX1
+set_attribute avoid true AFHCONX1
+set_attribute avoid true AHCSHCINX1
+set_attribute avoid true AHCSHCONX1
+set_attribute avoid true AHHCINX1
+set_attribute avoid true AHHCONX1
+set_attribute avoid true AND3BX1
+set_attribute avoid true AND3BX2
+set_attribute avoid true AND3BX4
+set_attribute avoid true AND3BX8
+set_attribute avoid true AND6X1
+set_attribute avoid true AND6X2
+set_attribute avoid true AND6X4
+set_attribute avoid true AND6X8
+set_attribute avoid true AO21BX1
+set_attribute avoid true AO21BX2
+set_attribute avoid true AO21BX4
+set_attribute avoid true AO21BX8
+set_attribute avoid true AO21X8
+set_attribute avoid true AO22X8
+set_attribute avoid true AO2B1X1
+set_attribute avoid true AO2B1X2
+set_attribute avoid true AO2B1X4
+set_attribute avoid true AO2B1X8
+set_attribute avoid true AO2B2BX1
+set_attribute avoid true AO2B2BX2
+set_attribute avoid true AO2B2BX4
+set_attribute avoid true AO2B2BX8
+set_attribute avoid true AO2B2X1
+set_attribute avoid true AO2B2X2
+set_attribute avoid true AO2B2X4
+set_attribute avoid true AO2B2X8
+set_attribute avoid true AOI211X8
+set_attribute avoid true AOI21B1BX1
+set_attribute avoid true AOI21B1BX2
+set_attribute avoid true AOI21B1BX4
+set_attribute avoid true AOI21B1BX8
+set_attribute avoid true AOI21BX1
+set_attribute avoid true AOI21BX2
+set_attribute avoid true AOI21BX4
+set_attribute avoid true AOI21BX8
+set_attribute avoid true AOI21X8
+set_attribute avoid true AOI221X8
+set_attribute avoid true AOI222X8
+set_attribute avoid true AOI22X8
+set_attribute avoid true AOI2B1X1
+set_attribute avoid true AOI2B1X2
+set_attribute avoid true AOI2B1X4
+set_attribute avoid true AOI2B1X8
+set_attribute avoid true AOI2B2BX1
+set_attribute avoid true AOI2B2BX2
+set_attribute avoid true AOI2B2BX4
+set_attribute avoid true AOI2B2BX8
+set_attribute avoid true AOI2B2X1
+set_attribute avoid true AOI2B2X2
+set_attribute avoid true AOI2B2X4
+set_attribute avoid true AOI2B2X8
+set_attribute avoid true AOI2BB1X8
+set_attribute avoid true AOI2BB2X8
+set_attribute avoid true AOI31X8
+set_attribute avoid true AOI32X8
+set_attribute avoid true AOI33X8
+set_attribute avoid true BMXIX1
+set_attribute avoid true BMXX1
+set_attribute avoid true BUFX1
+set_attribute avoid true CLKBUFX1
+set_attribute avoid true CLKMX4X12
+set_attribute avoid true CLKMX4X2
+set_attribute avoid true CLKMX4X4
+set_attribute avoid true CLKMX4X8
+set_attribute avoid true CLKNAND2X12
+set_attribute avoid true CLKNAND2X2
+set_attribute avoid true CLKNAND2X4
+set_attribute avoid true CLKNAND2X8
+set_attribute avoid true CLKXOR2X12
+set_attribute avoid true DFFQX8
+set_attribute avoid true DLY1X2
+set_attribute avoid true DLY2X2
+set_attribute avoid true DLY3X2
+set_attribute avoid true DLY4X2
+set_attribute avoid true DLYI1X2
+set_attribute avoid true DLYI1X4
+set_attribute avoid true DLYI2X2
+set_attribute avoid true DLYI2X4
+set_attribute avoid true DLYI3X2
+set_attribute avoid true DLYI3X4
+set_attribute avoid true DLYI4X2
+set_attribute avoid true DLYI4X4
+set_attribute avoid true NAND2BX8
+set_attribute avoid true NAND3BX8
+set_attribute avoid true NAND4BBX8
+set_attribute avoid true NAND4BX8
+set_attribute avoid true NOR2BX8
+set_attribute avoid true NOR3BX8
+set_attribute avoid true NOR4BX8
+set_attribute avoid true OA211X1
+set_attribute avoid true OA211X2
+set_attribute avoid true OA211X4
+set_attribute avoid true OA211X8
+set_attribute avoid true OA21X8
+set_attribute avoid true OA22X8
+set_attribute avoid true OA2B2X1
+set_attribute avoid true OA2B2X2
+set_attribute avoid true OA2B2X4
+set_attribute avoid true OA2B2X8
+set_attribute avoid true OAI211X8
+set_attribute avoid true OAI21BX1
+set_attribute avoid true OAI21BX2
+set_attribute avoid true OAI21BX4
+set_attribute avoid true OAI21BX8
+set_attribute avoid true OAI21X8
+set_attribute avoid true OAI221X8
+set_attribute avoid true OAI222X8
+set_attribute avoid true OAI22X8
+set_attribute avoid true OAI2B11X1
+set_attribute avoid true OAI2B11X2
+set_attribute avoid true OAI2B11X4
+set_attribute avoid true OAI2B11X8
+set_attribute avoid true OAI2B1B1X1
+set_attribute avoid true OAI2B1B1X2
+set_attribute avoid true OAI2B1B1X4
+set_attribute avoid true OAI2B1B1X8
+set_attribute avoid true OAI2B1X1
+set_attribute avoid true OAI2B1X2
+set_attribute avoid true OAI2B1X4
+set_attribute avoid true OAI2B1X8
+set_attribute avoid true OAI2B2X1
+set_attribute avoid true OAI2B2X2
+set_attribute avoid true OAI2B2X4
+set_attribute avoid true OAI2B2X8
+set_attribute avoid true OAI2BB1X8
+set_attribute avoid true OAI2BB2X8
+set_attribute avoid true OAI31X8
+set_attribute avoid true OAI32X8
+set_attribute avoid true OAI33X8
+set_attribute avoid true OR6X1
+set_attribute avoid true OR6X2
+set_attribute avoid true OR6X4
+set_attribute avoid true OR6X8
+set_attribute avoid true RF3R1WX1
+set_attribute avoid true RFBLDRVX1
+set_attribute avoid true RFDO1WX1
+set_attribute avoid true RFDO2WX1
+set_attribute avoid true SDFFQX8	
+set_attribute avoid true TLATNSRX8
+set_attribute avoid true TLATNX8
+set_attribute avoid true TLATSRX8
+set_attribute avoid true TLATX8
+set_attribute avoid true XNOR2X8
+set_attribute avoid true XNOR3X8
+set_attribute avoid true XOR2X8
+set_attribute avoid true XOR3X8
+#${AVOID_CELLS}
+
+
+########################################################
+### 	Step 3 : Specify Physical Layout Estimator Mode
+########################################################
+set_attribute interconnect_mode ple
+
+###############################################
+### 	Step 4 : Specify LEF Files
+###############################################
+### Technology LEF and Cell LEF
+set_attribute lef_library { tsmc13_hs_8lm.lef tsmc13_hs_8lm_antenna.lef ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN.vclef ra2sh_256W_32B_8MX_offWRMSK_8WRGRAN_ant.lef }
+###############################################
+### 	Step 5 : Specify .cap file
+###############################################
+### Unfortunately there's no .cap for UMC0.13
+
+###############################################
+### 	Step 6 : Import RTL
+###############################################
+read_hdl -vhdl {simd_fpu_pkg.vhd dbgif.vhd  lane.vhd simd_fpu.vhd}
+read_hdl -vhdl datapath.vhd
+
+###############################################
+### 	Step 7 : Clock gating phase 1
+###	Clock gating: Will insert special clock-gating
+###	cells in place of the flop enable condition
+###	Operand isolation: Will ensure datapaths are
+###	not driven by toggling registers when inactive
+###############################################
+set_attribute lp_insert_clock_gating true
+set_attribute lp_insert_operand_isolation true
+
+
+###############################################
+### 	Step 9 : Elaborate top level
+###############################################
+elaborate simd_fpu
+
+###############################################
+### 	Step 7 : Clock gating
+###	Clock gating: Will insert special clock-gating
+###	cells in place of the flop enable condition
+###	Operand isolation: Will ensure datapaths are
+###	not driven by toggling registers when inactive
+###############################################
+set_attribute lp_clock_gating_max_flops 16 simd_fpu
+set_attribute lp_clock_gating_min_flops 8 simd_fpu
+
+
+###############################################
+### 	Step 7 : Retiming
+### 	Set this attribute to true to allow
+###	the tool to move registers in order
+###	to satisfy the cycle time
+###############################################
+set_attribute retime true simd_fpu
+
+###############################################
+### 	Step 10 : Constaints
+###############################################
+### Define clock
+define_clock -name clk -p 2000 clk 
+external_delay -input  500.0 -clock clk addr[*] 
+external_delay -input  500.0 -clock clk wrdata[*] 
+external_delay -input  500.0 -clock clk rd 
+external_delay -input  500.0 -clock clk wr 
+external_delay -output  500.0 -clock clk rddata[*] 
+### DR Constraints
+### Max fanaout
+set_attribute max_fanout 10 simd_fpu
+### Max capacitance (fF)
+#set_attribute max_capacitance xyz simd_fpu
+
+
+###############################################
+### 	Step 11 : Verify Constaints!
+###	(pre-synthesis reports)
+###############################################
+report timing -endpoint
+report timing -lint
+#report timing -exceptions
+report clocks
+### This is issued to confirm all physical information present
+report ple
+
+###############################################
+### 	Step 12 : Synthesis proper
+###############################################
+# This is necessary for the spatial flow
+set_attribute encounter_executable /eda/cadence/2014-15/RHELx86/EDI_14.13.000/bin/encounter
+synthesize -to_mapped -spatial -effort low
+# 3 options:
+#[1] -effort low: 	Little RTL optimization, incrmeental clean up and redundancy removal
+#[2] -effort medium: 	(default) better timing-driven structuring, incr synthesis
+#[3] -effort high:
+	
+###############################################
+### 	Step 13 : Generating reports
+###	(post-synthesis reports)
+###############################################
+### Timing reports
+report timing
+report design_rules
+report gates
+report nets
+report summary
+
+###############################################
+### 	Step 14: Export output to downstream 
+###	flows and exit
+###############################################
+write_design -encounter
+write_hdl -mapped > simd_fpu.rc.v
+write_sdc  >  simd_fpu.rc.sdc
+
+exit
+
